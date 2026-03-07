@@ -1,0 +1,46 @@
+{
+  "name": "@wecom/aibot-node-sdk",
+  "version": "1.0.0",
+  "description": "企业微信智能机器人 Node.js SDK - WebSocket 长连接通道",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "publish:release": "npm run prebuild && npm run build && npm publish",
+    "example": "ts-node examples/basic.ts"
+  },
+  "keywords": [
+    "wecom",
+    "wxwork",
+    "bot",
+    "aibot",
+    "websocket"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0",
+    "axios": "^1.6.7",
+    "eventemitter3": "^5.0.1"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.11.16",
+    "@types/ws": "^8.5.10",
+    "rollup": "^4.59.0",
+    "rollup-plugin-dts": "^6.1.0",
+    "ts-node": "^10.9.2",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  }
+}
