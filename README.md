@@ -396,6 +396,9 @@ yarn build
 yarn example
 ```
 
+## 🦐 其他语言
+- [wecom-aibot-go-sdk](https://github.com/go-sphere/wecom-aibot-go-sdk): 企业微信智能机器人 Go SDK
+
 ## 📄 License
 
 MIT
