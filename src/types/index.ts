@@ -56,6 +56,14 @@ export type {
   SendMarkdownMsgBody,
   SendTemplateCardMsgBody,
   SendMsgBody,
+  SendMediaMsgBody,
+  WeComMediaType,
+  UploadMediaOptions,
+  UploadMediaFinishResult,
+  UploadMediaInitBody,
+  UploadMediaInitResult,
+  UploadMediaChunkBody,
+  UploadMediaFinishBody,
 } from './api';
 export {
   EventType,

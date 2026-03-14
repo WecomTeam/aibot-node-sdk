@@ -17,6 +17,12 @@ export const WsCmd = {
   RESPONSE_UPDATE: 'aibot_respond_update_msg',
   /** 主动发送消息 */
   SEND_MSG: 'aibot_send_msg',
+  /** 上传临时素材 - 初始化 */
+  UPLOAD_MEDIA_INIT: 'aibot_upload_media_init',
+  /** 上传临时素材 - 分片上传 */
+  UPLOAD_MEDIA_CHUNK: 'aibot_upload_media_chunk',
+  /** 上传临时素材 - 完成上传 */
+  UPLOAD_MEDIA_FINISH: 'aibot_upload_media_finish',
 
   // ========== 企业微信 → 开发者 ==========
   /** 消息推送回调 */
@@ -425,7 +431,7 @@ export interface SendTemplateCardMsgBody {
 }
 
 /** 主动发送消息体联合类型 */
-export type SendMsgBody = SendMarkdownMsgBody | SendTemplateCardMsgBody;
+export type SendMsgBody = SendMarkdownMsgBody | SendTemplateCardMsgBody | SendMediaMsgBody;
 
 /** 更新模板卡片消息体 */
 export interface UpdateTemplateCardBody {
@@ -435,4 +441,85 @@ export interface UpdateTemplateCardBody {
   userids?: string[];
   /** 要替换的模版卡片内容 */
   template_card: TemplateCard;
+}
+
+// ========== 媒体消息类型 ==========
+
+/** 企业微信媒体类型 */
+export type WeComMediaType = 'file' | 'image' | 'voice' | 'video';
+
+/** 媒体消息发送体（主动发送 + 被动回复共用） */
+export interface SendMediaMsgBody {
+  /** 消息类型 */
+  msgtype: WeComMediaType;
+  /** 文件消息 */
+  file?: { media_id: string };
+  /** 图片消息 */
+  image?: { media_id: string };
+  /** 语音消息 */
+  voice?: { media_id: string };
+  /** 视频消息 */
+  video?: {
+    media_id: string;
+    /** 视频消息的标题，不超过128个字节，超过会自动截断 */
+    title?: string;
+    /** 视频消息的描述，不超过512个字节，超过会自动截断 */
+    description?: string;
+  };
+}
+
+// ========== 上传临时素材相关类型 ==========
+
+/** 上传素材初始化请求 body */
+export interface UploadMediaInitBody {
+  /** 素材类型 */
+  type: WeComMediaType;
+  /** 文件名 */
+  filename: string;
+  /** 文件总大小（字节） */
+  total_size: number;
+  /** 分片总数 */
+  total_chunks: number;
+  /** 文件 MD5 值（可选） */
+  md5?: string;
+}
+
+/** 上传素材初始化响应 body */
+export interface UploadMediaInitResult {
+  /** 上传会话 ID */
+  upload_id: string;
+}
+
+/** 上传素材分片请求 body */
+export interface UploadMediaChunkBody {
+  /** 上传会话 ID */
+  upload_id: string;
+  /** 分片索引（从 1 开始） */
+  chunk_index: number;
+  /** 分片数据（Base64 编码） */
+  base64_data: string;
+}
+
+/** 完成上传请求 body */
+export interface UploadMediaFinishBody {
+  /** 上传会话 ID */
+  upload_id: string;
+}
+
+/** 完成上传响应 body */
+export interface UploadMediaFinishResult {
+  /** 素材类型 */
+  type: WeComMediaType;
+  /** 临时素材 media_id，3天内有效 */
+  media_id: string;
+  /** 创建时间 */
+  created_at: string;
+}
+
+/** uploadMedia 方法选项 */
+export interface UploadMediaOptions {
+  /** 素材类型 */
+  type: WeComMediaType;
+  /** 文件名 */
+  filename: string;
 }

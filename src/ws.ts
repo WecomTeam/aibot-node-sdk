@@ -133,7 +133,8 @@ export class WsConnectionManager {
 
     this.ws.on('message', (data: WebSocket.Data) => {
       try {
-        const frame = JSON.parse(data.toString()) as WsFrame;
+        const raw = data.toString();
+        const frame = JSON.parse(raw) as WsFrame;
         this.handleFrame(frame);
       } catch (error: any) {
         this.logger.error('Failed to parse WebSocket message:', error.message);
@@ -194,30 +195,33 @@ export class WsConnectionManager {
    * - 认证/心跳响应：{ headers: { req_id }, errcode: 0, errmsg: "ok" }
    */
   private handleFrame(frame: WsFrame): void {
+    const cmd = frame.cmd || '';
+    const reqId = frame.headers?.req_id || '';
+
     // 消息推送：cmd 为 "aibot_msg_callback"
     if (frame.cmd === WsCmd.CALLBACK) {
-      this.logger.debug('Received push message:', JSON.stringify(frame.body));
+      this.logger.info(`[server -> plugin] cmd=${cmd}, reqId=${reqId}, body=${JSON.stringify(frame.body)}`);
       this.onMessage?.(frame);
       return;
     }
 
     // 事件推送：cmd 为 "aibot_event_callback"
     if (frame.cmd === WsCmd.EVENT_CALLBACK) {
-      this.logger.debug('Received event callback:', JSON.stringify(frame.body));
+      this.logger.info(`[server -> plugin] cmd=${cmd}, reqId=${reqId}, body=${JSON.stringify(frame.body)}`);
       this.onMessage?.(frame);
       return;
     }
 
     // 无 cmd 的帧：认证响应、心跳响应或回复消息回执，通过 req_id 前缀区分类型，再判断 errcode
-    const reqId = frame.headers?.req_id || '';
+    const actualReqId = frame.headers?.req_id || '';
 
     // 检查是否是回复消息的回执（req_id 存在于 pendingAcks 中）
-    if (this.pendingAcks.has(reqId)) {
-      this.handleReplyAck(reqId, frame);
+    if (this.pendingAcks.has(actualReqId)) {
+      this.handleReplyAck(actualReqId, frame);
       return;
     }
 
-    if (reqId.startsWith(WsCmd.SUBSCRIBE)) {
+    if (actualReqId.startsWith(WsCmd.SUBSCRIBE)) {
       // 认证响应
       if (frame.errcode !== 0) {
         this.logger.error(`Authentication failed: errcode=${frame.errcode}, errmsg=${frame.errmsg}`);
@@ -230,7 +234,7 @@ export class WsConnectionManager {
       return;
     }
 
-    if (reqId.startsWith(WsCmd.HEARTBEAT)) {
+    if (actualReqId.startsWith(WsCmd.HEARTBEAT)) {
       // 心跳响应
       if (frame.errcode !== 0) {
         this.logger.warn(`Heartbeat ack error: errcode=${frame.errcode}, errmsg=${frame.errmsg}`);
@@ -241,9 +245,8 @@ export class WsConnectionManager {
       return;
     }
 
-    // 未知帧类型
-    this.logger.warn('Received unknown frame:', JSON.stringify(frame));
-    this.onMessage?.(frame);
+    // 未知帧类型 — 只记录警告，不传给 onMessage（避免 body=undefined 导致下游误处理）
+    this.logger.warn('Received unknown frame (ignored):', JSON.stringify(frame));
   }
 
   /**
@@ -335,7 +338,8 @@ export class WsConnectionManager {
    */
   send(frame: WsFrame): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(frame));
+      const data = JSON.stringify(frame);
+      this.ws.send(data);
     } else {
       throw new Error('WebSocket not connected, unable to send data');
     }
@@ -355,6 +359,11 @@ export class WsConnectionManager {
    * @returns Promise，收到回执时 resolve(回执帧)，超时或errcode非0时 reject(Error)
    */
   sendReply(reqId: string, body: any, cmd: string = WsCmd.RESPONSE): Promise<WsFrame> {
+    // 日志中截断 base64_data，避免分片上传时日志过大
+    const logBody = body?.base64_data
+      ? { ...body, base64_data: `<${body.base64_data.length} chars>` }
+      : body;
+    this.logger.debug(`[ws] sendReply: reqId=${reqId}, cmd=${cmd}, body=${JSON.stringify(logBody)}`);
     return new Promise<WsFrame>((resolve, reject) => {
       const frame: WsFrame = {
         cmd,

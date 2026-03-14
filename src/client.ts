@@ -15,8 +15,14 @@ import type {
   StreamWithTemplateCardReplyBody,
   SendMarkdownMsgBody,
   SendTemplateCardMsgBody,
+  SendMediaMsgBody,
+  SendMsgBody,
+  WeComMediaType,
+  UploadMediaOptions,
+  UploadMediaFinishResult,
 } from './types';
 import { WsCmd } from './types';
+import { createHash } from 'crypto';
 import type { Logger } from './types';
 import { WeComApiClient } from './api';
 import { WsConnectionManager } from './ws';
@@ -321,13 +327,201 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
    * });
    * ```
    */
-  sendMessage(chatid: string, body: SendMarkdownMsgBody | SendTemplateCardMsgBody): Promise<WsFrame> {
+  sendMessage(chatid: string, body: SendMsgBody): Promise<WsFrame> {
     const reqId = generateReqId(WsCmd.SEND_MSG);
     const fullBody = {
       chatid,
       ...body,
     };
     return this.wsManager.sendReply(reqId, fullBody, WsCmd.SEND_MSG);
+  }
+
+  /**
+   * 上传临时素材（三步分片上传）
+   *
+   * 通过 WebSocket 长连接执行分片上传：init → chunk × N → finish
+   * 单个分片不超过 512KB（Base64 编码前），最多 100 个分片。
+   *
+   * @param fileBuffer - 文件 Buffer
+   * @param options - 上传选项（类型、文件名）
+   * @returns 上传结果，包含 media_id
+   */
+  async uploadMedia(fileBuffer: Buffer, options: UploadMediaOptions): Promise<UploadMediaFinishResult> {
+    const { type, filename } = options;
+    const totalSize = fileBuffer.length;
+
+    // 分片大小：512KB（Base64 编码前）
+    const CHUNK_SIZE = 512 * 1024;
+    const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
+
+    if (totalChunks > 100) {
+      throw new Error(`File too large: ${totalChunks} chunks exceeds maximum of 100 chunks (max ~50MB)`);
+    }
+
+    // 计算文件 MD5
+    const md5 = createHash('md5').update(fileBuffer).digest('hex');
+
+    this.logger.info(`Uploading media: type=${type}, filename=${filename}, size=${totalSize}, chunks=${totalChunks}`);
+
+    // Step 1: 初始化上传
+    const initReqId = generateReqId(WsCmd.UPLOAD_MEDIA_INIT);
+    const initResult = await this.wsManager.sendReply(
+      initReqId,
+      { type, filename, total_size: totalSize, total_chunks: totalChunks, md5 },
+      WsCmd.UPLOAD_MEDIA_INIT,
+    );
+
+    const uploadId = initResult.body?.upload_id;
+    if (!uploadId) {
+      throw new Error(`Upload init failed: no upload_id returned. Response: ${JSON.stringify(initResult)}`);
+    }
+
+    this.logger.info(`Upload init success: upload_id=${uploadId}`);
+
+    // Step 2: 分片上传（带重试，根据分片数动态调整并发）
+    /** 单分片最大重试次数 */
+    const MAX_CHUNK_RETRIES = 2;
+    /**
+     * 动态计算并发数：
+     * - 1~4 分片（≤2MB）：全部并发
+     * - 5~10 分片（2~5MB）：并发 3
+     * - >10 分片（>5MB）：并发 2（企微后端对大量并发 chunk 会返回 system error）
+     */
+    const MAX_CONCURRENCY = totalChunks <= 4 ? totalChunks : totalChunks <= 10 ? 3 : 2;
+
+    const uploadChunk = async (chunkIndex: number): Promise<void> => {
+      const start = chunkIndex * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, totalSize);
+      const chunk = fileBuffer.subarray(start, end);
+      const base64Data = chunk.toString('base64');
+
+      let lastError: unknown;
+      for (let attempt = 0; attempt <= MAX_CHUNK_RETRIES; attempt++) {
+        try {
+          const chunkReqId = generateReqId(WsCmd.UPLOAD_MEDIA_CHUNK);
+          await this.wsManager.sendReply(
+            chunkReqId,
+            { upload_id: uploadId, chunk_index: chunkIndex, base64_data: base64Data },
+            WsCmd.UPLOAD_MEDIA_CHUNK,
+          );
+          this.logger.debug(`Uploaded chunk ${chunkIndex + 1}/${totalChunks} (${chunk.length} bytes)`);
+          return;
+        } catch (err) {
+          lastError = err;
+          if (attempt < MAX_CHUNK_RETRIES) {
+            const delay = 500 * (attempt + 1);
+            this.logger.warn(
+              `Chunk ${chunkIndex} upload failed (attempt ${attempt + 1}/${MAX_CHUNK_RETRIES + 1}), ` +
+              `retrying in ${delay}ms... error: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+            );
+            await new Promise(r => setTimeout(r, delay));
+          }
+        }
+      }
+      // 所有重试都失败
+      const errMsg = lastError instanceof Error
+        ? lastError.message
+        : JSON.stringify(lastError);
+      throw new Error(`Chunk ${chunkIndex} upload failed after ${MAX_CHUNK_RETRIES + 1} attempts: ${errMsg}`);
+    };
+
+    this.logger.debug(`Upload concurrency: ${MAX_CONCURRENCY} workers for ${totalChunks} chunks`);
+
+    if (totalChunks <= 1) {
+      // 单分片直接上传
+      await uploadChunk(0);
+    } else {
+      // 多分片并发上传：动态并发数
+      let nextIndex = 0;
+      const errors: Error[] = [];
+
+      const runWorker = async (): Promise<void> => {
+        while (nextIndex < totalChunks) {
+          const idx = nextIndex++;
+          try {
+            await uploadChunk(idx);
+          } catch (err) {
+            errors.push(err instanceof Error ? err : new Error(String(err)));
+          }
+        }
+      };
+
+      const workerCount = Math.min(MAX_CONCURRENCY, totalChunks);
+      await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+      if (errors.length > 0) {
+        throw new Error(`Upload failed: ${errors.length} chunk(s) failed. First error: ${errors[0].message}`);
+      }
+    }
+
+    this.logger.info(`All ${totalChunks} chunks uploaded, finishing...`);
+
+    // Step 3: 完成上传
+    const finishReqId = generateReqId(WsCmd.UPLOAD_MEDIA_FINISH);
+    const finishResult = await this.wsManager.sendReply(
+      finishReqId,
+      { upload_id: uploadId },
+      WsCmd.UPLOAD_MEDIA_FINISH,
+    );
+
+    const mediaId = finishResult.body?.media_id;
+    if (!mediaId) {
+      throw new Error(`Upload finish failed: no media_id returned. Response: ${JSON.stringify(finishResult)}`);
+    }
+
+    this.logger.info(`Upload complete: media_id=${mediaId}, type=${finishResult.body?.type}`);
+
+    return {
+      type: finishResult.body?.type ?? type,
+      media_id: mediaId,
+      created_at: finishResult.body?.created_at ?? new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 被动回复媒体消息（便捷方法）
+   *
+   * 通过 aibot_respond_msg 被动回复通道发送媒体消息（file/image/voice/video）
+   *
+   * @param frame - 收到的原始 WebSocket 帧，透传 headers.req_id
+   * @param mediaType - 媒体类型
+   * @param mediaId - 临时素材 media_id
+   * @param videoOptions - 视频消息可选参数（仅 mediaType='video' 时生效）
+   */
+  replyMedia(frame: WsFrameHeaders, mediaType: WeComMediaType, mediaId: string, videoOptions?: { title?: string; description?: string }): Promise<WsFrame> {
+    const mediaContent: Record<string, any> = { media_id: mediaId };
+    if (mediaType === 'video' && videoOptions) {
+      if (videoOptions.title) mediaContent.title = videoOptions.title;
+      if (videoOptions.description) mediaContent.description = videoOptions.description;
+    }
+    const body: SendMediaMsgBody = {
+      msgtype: mediaType,
+      [mediaType]: mediaContent,
+    };
+    return this.reply(frame, body);
+  }
+
+  /**
+   * 主动发送媒体消息（便捷方法）
+   *
+   * 通过 aibot_send_msg 主动推送通道发送媒体消息
+   *
+   * @param chatid - 会话 ID
+   * @param mediaType - 媒体类型
+   * @param mediaId - 临时素材 media_id
+   * @param videoOptions - 视频消息可选参数（仅 mediaType='video' 时生效）
+   */
+  sendMediaMessage(chatid: string, mediaType: WeComMediaType, mediaId: string, videoOptions?: { title?: string; description?: string }): Promise<WsFrame> {
+    const mediaContent: Record<string, any> = { media_id: mediaId };
+    if (mediaType === 'video' && videoOptions) {
+      if (videoOptions.title) mediaContent.title = videoOptions.title;
+      if (videoOptions.description) mediaContent.description = videoOptions.description;
+    }
+    const body: SendMediaMsgBody = {
+      msgtype: mediaType,
+      [mediaType]: mediaContent,
+    };
+    return this.sendMessage(chatid, body);
   }
 
   /**
@@ -344,6 +538,7 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
    * ```
    */
   async downloadFile(url: string, aesKey?: string): Promise<{ buffer: Buffer; filename?: string }> {
+    this.logger.debug(`[plugin] downloadFile: url=${url}, hasAesKey=${!!aesKey}`);
     this.logger.info('Downloading and decrypting file...');
 
     try {

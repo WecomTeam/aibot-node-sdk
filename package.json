@@ -13,7 +13,8 @@
     "dev": "rollup -c -w",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "publish:release": "npm run prebuild && npm run build && npm publish",
+    "release": "node scripts/publish-all.mjs",
+    "release:dry": "node scripts/publish-all.mjs --dry-run",
     "example": "ts-node examples/basic.ts"
   },
   "keywords": [
