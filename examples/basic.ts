@@ -185,7 +185,7 @@ wsClient.on('message.voice', (frame: WsFrame) => {
   console.log(`🎙️ 收到语音消息（转文本）: ${body.voice?.content}`);
 });
 
-// 监听文件消息
+// 监听文件消息(视频消息 message.video)
 wsClient.on('message.file', async (frame: WsFrame) => {
   const body = frame.body;
   const fileUrl = body.file?.url;

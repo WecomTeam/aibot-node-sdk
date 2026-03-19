@@ -77,6 +77,9 @@ export class MessageHandler {
       case MessageType.File:
         emitter.emit('message.file', frame);
         break;
+      case MessageType.Video:
+        emitter.emit('message.video', frame);
+        break;
       default:
         this.logger.debug(`Received unhandled message type: ${body.msgtype}`);
         break;

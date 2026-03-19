@@ -9,6 +9,7 @@ import type {
   MixedMessage,
   VoiceMessage,
   FileMessage,
+  VideoMessage,
 } from './message';
 import type { WsFrame } from './api';
 
@@ -100,6 +101,8 @@ export interface WSClientEventMap {
   'message.voice': (data: WsFrame<VoiceMessage>) => void;
   /** 收到文件消息，body 为 FileMessage */
   'message.file': (data: WsFrame<FileMessage>) => void;
+  /** 收到视频消息，body 为 VideoMessage */
+  'message.video': (data: WsFrame<VideoMessage>) => void;
   /** 收到事件回调（所有事件类型），body 为 EventMessage */
   event: (data: WsFrame<EventMessage>) => void;
   /** 收到进入会话事件，body 为 EventMessage（event 字段为 EnterChatEvent） */

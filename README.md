@@ -95,28 +95,28 @@ const wsClient = new WSClient(options: WSClientOptions);
 
 #### 方法一览
 
-| 方法 | 说明 | 返回值 |
-| --- | --- | --- |
-| `connect()` | 建立 WebSocket 连接，连接后自动认证 | `this`（支持链式调用） |
-| `disconnect()` | 主动断开连接 | `void` |
-| `reply(frame, body, cmd?)` | 通过 WebSocket 通道发送回复消息（通用方法） | `Promise<WsFrame>` |
-| `replyStream(frame, streamId, content, finish?, msgItem?, feedback?)` | 发送流式文本回复（支持 Markdown） | `Promise<WsFrame>` |
-| `replyWelcome(frame, body)` | 发送欢迎语回复（文本或模板卡片），需 5s 内调用 | `Promise<WsFrame>` |
-| `replyTemplateCard(frame, templateCard, feedback?)` | 回复模板卡片消息 | `Promise<WsFrame>` |
-| `replyStreamWithCard(frame, streamId, content, finish?, options?)` | 流式消息 + 模板卡片组合回复 | `Promise<WsFrame>` |
-| `updateTemplateCard(frame, templateCard, userids?)` | 更新模板卡片（响应 template_card_event），需 5s 内调用 | `Promise<WsFrame>` |
-| `sendMessage(chatid, body)` | 主动发送消息（Markdown / 模板卡片 / 媒体），无需回调帧 | `Promise<WsFrame>` |
-| `uploadMedia(fileBuffer, options)` | 上传临时素材（三步分片上传），返回 `media_id` | `Promise<UploadMediaFinishResult>` |
-| `replyMedia(frame, mediaType, mediaId, videoOptions?)` | 被动回复媒体消息（file/image/voice/video） | `Promise<WsFrame>` |
-| `sendMediaMessage(chatid, mediaType, mediaId, videoOptions?)` | 主动发送媒体消息 | `Promise<WsFrame>` |
-| `downloadFile(url, aesKey)` | 下载文件并 AES 解密，返回 Buffer 及文件名 | `Promise<{ buffer: Buffer; filename?: string }>` |
+| 方法                                                                  | 说明                                                   | 返回值                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------ |
+| `connect()`                                                           | 建立 WebSocket 连接，连接后自动认证                    | `this`（支持链式调用）                           |
+| `disconnect()`                                                        | 主动断开连接                                           | `void`                                           |
+| `reply(frame, body, cmd?)`                                            | 通过 WebSocket 通道发送回复消息（通用方法）            | `Promise<WsFrame>`                               |
+| `replyStream(frame, streamId, content, finish?, msgItem?, feedback?)` | 发送流式文本回复（支持 Markdown）                      | `Promise<WsFrame>`                               |
+| `replyWelcome(frame, body)`                                           | 发送欢迎语回复（文本或模板卡片），需 5s 内调用         | `Promise<WsFrame>`                               |
+| `replyTemplateCard(frame, templateCard, feedback?)`                   | 回复模板卡片消息                                       | `Promise<WsFrame>`                               |
+| `replyStreamWithCard(frame, streamId, content, finish?, options?)`    | 流式消息 + 模板卡片组合回复                            | `Promise<WsFrame>`                               |
+| `updateTemplateCard(frame, templateCard, userids?)`                   | 更新模板卡片（响应 template_card_event），需 5s 内调用 | `Promise<WsFrame>`                               |
+| `sendMessage(chatid, body)`                                           | 主动发送消息（Markdown / 模板卡片 / 媒体），无需回调帧 | `Promise<WsFrame>`                               |
+| `uploadMedia(fileBuffer, options)`                                    | 上传临时素材（三步分片上传），返回 `media_id`          | `Promise<UploadMediaFinishResult>`               |
+| `replyMedia(frame, mediaType, mediaId, videoOptions?)`                | 被动回复媒体消息（file/image/voice/video）             | `Promise<WsFrame>`                               |
+| `sendMediaMessage(chatid, mediaType, mediaId, videoOptions?)`         | 主动发送媒体消息                                       | `Promise<WsFrame>`                               |
+| `downloadFile(url, aesKey)`                                           | 下载文件并 AES 解密，返回 Buffer 及文件名              | `Promise<{ buffer: Buffer; filename?: string }>` |
 
 #### 属性
 
-| 属性 | 说明 | 类型 |
-| --- | --- | --- |
-| `isConnected` | 当前 WebSocket 连接状态 | `boolean` |
-| `api` | 内部 API 客户端实例（高级用途） | `WeComApiClient` |
+| 属性          | 说明                            | 类型             |
+| ------------- | ------------------------------- | ---------------- |
+| `isConnected` | 当前 WebSocket 连接状态         | `boolean`        |
+| `api`         | 内部 API 客户端实例（高级用途） | `WeComApiClient` |
 
 ---
 
@@ -353,16 +353,16 @@ wsClient.on('message.image', async (frame: WsFrame) => {
 
 `WSClientOptions` 完整配置：
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `botId` | `string` | ✅ | — | 机器人 ID（企业微信后台获取） |
-| `secret` | `string` | ✅ | — | 机器人 Secret（企业微信后台获取） |
-| `reconnectInterval` | `number` | — | `1000` | 重连基础延迟（毫秒），实际延迟按指数退避递增（1s → 2s → 4s → ... → 30s 上限） |
-| `maxReconnectAttempts` | `number` | — | `10` | 最大重连次数（`-1` 表示无限重连） |
-| `heartbeatInterval` | `number` | — | `30000` | 心跳间隔（毫秒） |
-| `requestTimeout` | `number` | — | `10000` | HTTP 请求超时时间（毫秒） |
-| `wsUrl` | `string` | — | `wss://openws.work.weixin.qq.com` | 自定义 WebSocket 连接地址 |
-| `logger` | `Logger` | — | `DefaultLogger` | 自定义日志实例 |
+| 参数                   | 类型     | 必填 | 默认值                            | 说明                                                                          |
+| ---------------------- | -------- | ---- | --------------------------------- | ----------------------------------------------------------------------------- |
+| `botId`                | `string` | ✅    | —                                 | 机器人 ID（企业微信后台获取）                                                 |
+| `secret`               | `string` | ✅    | —                                 | 机器人 Secret（企业微信后台获取）                                             |
+| `reconnectInterval`    | `number` | —    | `1000`                            | 重连基础延迟（毫秒），实际延迟按指数退避递增（1s → 2s → 4s → ... → 30s 上限） |
+| `maxReconnectAttempts` | `number` | —    | `10`                              | 最大重连次数（`-1` 表示无限重连）                                             |
+| `heartbeatInterval`    | `number` | —    | `30000`                           | 心跳间隔（毫秒）                                                              |
+| `requestTimeout`       | `number` | —    | `10000`                           | HTTP 请求超时时间（毫秒）                                                     |
+| `wsUrl`                | `string` | —    | `wss://openws.work.weixin.qq.com` | 自定义 WebSocket 连接地址                                                     |
+| `logger`               | `Logger` | —    | `DefaultLogger`                   | 自定义日志实例                                                                |
 
 ---
 
@@ -370,23 +370,24 @@ wsClient.on('message.image', async (frame: WsFrame) => {
 
 所有事件均通过 `wsClient.on(event, handler)` 监听：
 
-| 事件 | 回调参数 | 说明 |
-| --- | --- | --- |
-| `connected` | — | WebSocket 连接建立 |
-| `authenticated` | — | 认证成功 |
-| `disconnected` | `reason: string` | 连接断开 |
-| `reconnecting` | `attempt: number` | 正在重连（第 N 次） |
-| `error` | `error: Error` | 发生错误 |
-| `message` | `frame: WsFrame<BaseMessage>` | 收到消息（所有类型） |
-| `message.text` | `frame: WsFrame<TextMessage>` | 收到文本消息 |
-| `message.image` | `frame: WsFrame<ImageMessage>` | 收到图片消息 |
-| `message.mixed` | `frame: WsFrame<MixedMessage>` | 收到图文混排消息 |
-| `message.voice` | `frame: WsFrame<VoiceMessage>` | 收到语音消息 |
-| `message.file` | `frame: WsFrame<FileMessage>` | 收到文件消息 |
-| `event` | `frame: WsFrame<EventMessage>` | 收到事件回调（所有事件类型） |
-| `event.enter_chat` | `frame: WsFrame<EventMessage>` | 收到进入会话事件（用户当天首次进入单聊会话） |
-| `event.template_card_event` | `frame: WsFrame<EventMessage>` | 收到模板卡片事件（用户点击卡片按钮） |
-| `event.feedback_event` | `frame: WsFrame<EventMessage>` | 收到用户反馈事件 |
+| 事件                        | 回调参数                       | 说明                                         |
+| --------------------------- | ------------------------------ | -------------------------------------------- |
+| `connected`                 | —                              | WebSocket 连接建立                           |
+| `authenticated`             | —                              | 认证成功                                     |
+| `disconnected`              | `reason: string`               | 连接断开                                     |
+| `reconnecting`              | `attempt: number`              | 正在重连（第 N 次）                          |
+| `error`                     | `error: Error`                 | 发生错误                                     |
+| `message`                   | `frame: WsFrame<BaseMessage>`  | 收到消息（所有类型）                         |
+| `message.text`              | `frame: WsFrame<TextMessage>`  | 收到文本消息                                 |
+| `message.image`             | `frame: WsFrame<ImageMessage>` | 收到图片消息                                 |
+| `message.mixed`             | `frame: WsFrame<MixedMessage>` | 收到图文混排消息                             |
+| `message.voice`             | `frame: WsFrame<VoiceMessage>` | 收到语音消息                                 |
+| `message.file`              | `frame: WsFrame<FileMessage>`  | 收到文件消息                                 |
+| `message.video`             | `frame: WsFrame<VideoMessage>` | 收到视频消息                                 |
+| `event`                     | `frame: WsFrame<EventMessage>` | 收到事件回调（所有事件类型）                 |
+| `event.enter_chat`          | `frame: WsFrame<EventMessage>` | 收到进入会话事件（用户当天首次进入单聊会话） |
+| `event.template_card_event` | `frame: WsFrame<EventMessage>` | 收到模板卡片事件（用户点击卡片按钮）         |
+| `event.feedback_event`      | `frame: WsFrame<EventMessage>` | 收到用户反馈事件                             |
 
 ---
 
@@ -394,30 +395,31 @@ wsClient.on('message.image', async (frame: WsFrame) => {
 
 SDK 支持以下消息类型（`MessageType` 枚举）：
 
-| 类型 | 值 | 说明 |
-| --- | --- | --- |
-| `Text` | `'text'` | 文本消息 |
+| 类型    | 值        | 说明                                                     |
+| ------- | --------- | -------------------------------------------------------- |
+| `Text`  | `'text'`  | 文本消息                                                 |
 | `Image` | `'image'` | 图片消息（URL 已加密，使用消息中的 `image.aeskey` 解密） |
-| `Mixed` | `'mixed'` | 图文混排消息（包含 text / image 子项） |
-| `Voice` | `'voice'` | 语音消息（已转文本） |
-| `File` | `'file'` | 文件消息（URL 已加密，使用消息中的 `file.aeskey` 解密） |
+| `Mixed` | `'mixed'` | 图文混排消息（包含 text / image 子项）                   |
+| `Voice` | `'voice'` | 语音消息（已转文本）                                     |
+| `File`  | `'file'`  | 文件消息（URL 已加密，使用消息中的 `file.aeskey` 解密）  |
+| `Video` | `'video'` | 视频消息（URL 已加密，使用消息中的 `video.aeskey` 解密） |
 
 SDK 支持以下事件类型（`EventType` 枚举）：
 
-| 类型 | 值 | 说明 |
-| --- | --- | --- |
-| `EnterChat` | `'enter_chat'` | 进入会话事件：用户当天首次进入机器人单聊会话 |
-| `TemplateCardEvent` | `'template_card_event'` | 模板卡片事件：用户点击模板卡片按钮 |
-| `FeedbackEvent` | `'feedback_event'` | 用户反馈事件：用户对机器人回复进行反馈 |
+| 类型                | 值                      | 说明                                         |
+| ------------------- | ----------------------- | -------------------------------------------- |
+| `EnterChat`         | `'enter_chat'`          | 进入会话事件：用户当天首次进入机器人单聊会话 |
+| `TemplateCardEvent` | `'template_card_event'` | 模板卡片事件：用户点击模板卡片按钮           |
+| `FeedbackEvent`     | `'feedback_event'`      | 用户反馈事件：用户对机器人回复进行反馈       |
 
 SDK 支持以下媒体类型（`WeComMediaType` 类型）：
 
-| 类型 | 值 | 说明 |
-| --- | --- | --- |
-| — | `'file'` | 文件 |
-| — | `'image'` | 图片 |
-| — | `'voice'` | 语音 |
-| — | `'video'` | 视频 |
+| 类型 | 值        | 说明 |
+| ---- | --------- | ---- |
+| —    | `'file'`  | 文件 |
+| —    | `'image'` | 图片 |
+| —    | `'voice'` | 语音 |
+| —    | `'video'` | 视频 |
 
 ---
 
@@ -425,12 +427,12 @@ SDK 支持以下媒体类型（`WeComMediaType` 类型）：
 
 SDK 支持以下模板卡片类型（`TemplateCardType` 枚举）：
 
-| 类型 | 值 | 说明 |
-| --- | --- | --- |
-| `TextNotice` | `'text_notice'` | 文本通知模版卡片 |
-| `NewsNotice` | `'news_notice'` | 图文展示模版卡片 |
-| `ButtonInteraction` | `'button_interaction'` | 按钮交互模版卡片 |
-| `VoteInteraction` | `'vote_interaction'` | 投票选择模版卡片 |
+| 类型                  | 值                       | 说明             |
+| --------------------- | ------------------------ | ---------------- |
+| `TextNotice`          | `'text_notice'`          | 文本通知模版卡片 |
+| `NewsNotice`          | `'news_notice'`          | 图文展示模版卡片 |
+| `ButtonInteraction`   | `'button_interaction'`   | 按钮交互模版卡片 |
+| `VoteInteraction`     | `'vote_interaction'`     | 投票选择模版卡片 |
 | `MultipleInteraction` | `'multiple_interaction'` | 多项选择模版卡片 |
 
 ---
@@ -519,19 +521,19 @@ const wsClient = new AiBot.WSClient({
 
 以下为 SDK 内部使用的 WebSocket 命令常量（`WsCmd`），了解底层协议有助于高级调试：
 
-| 方向 | 常量 | 值 | 说明 |
-| --- | --- | --- | --- |
-| 开发者 → 企微 | `SUBSCRIBE` | `aibot_subscribe` | 认证订阅 |
-| 开发者 → 企微 | `HEARTBEAT` | `ping` | 心跳 |
-| 开发者 → 企微 | `RESPONSE` | `aibot_respond_msg` | 回复消息 |
-| 开发者 → 企微 | `RESPONSE_WELCOME` | `aibot_respond_welcome_msg` | 回复欢迎语 |
-| 开发者 → 企微 | `RESPONSE_UPDATE` | `aibot_respond_update_msg` | 更新模板卡片 |
-| 开发者 → 企微 | `SEND_MSG` | `aibot_send_msg` | 主动发送消息 |
-| 开发者 → 企微 | `UPLOAD_MEDIA_INIT` | `aibot_upload_media_init` | 上传素材 - 初始化 |
-| 开发者 → 企微 | `UPLOAD_MEDIA_CHUNK` | `aibot_upload_media_chunk` | 上传素材 - 分片 |
-| 开发者 → 企微 | `UPLOAD_MEDIA_FINISH` | `aibot_upload_media_finish` | 上传素材 - 完成 |
-| 企微 → 开发者 | `CALLBACK` | `aibot_msg_callback` | 消息推送回调 |
-| 企微 → 开发者 | `EVENT_CALLBACK` | `aibot_event_callback` | 事件推送回调 |
+| 方向          | 常量                  | 值                          | 说明              |
+| ------------- | --------------------- | --------------------------- | ----------------- |
+| 开发者 → 企微 | `SUBSCRIBE`           | `aibot_subscribe`           | 认证订阅          |
+| 开发者 → 企微 | `HEARTBEAT`           | `ping`                      | 心跳              |
+| 开发者 → 企微 | `RESPONSE`            | `aibot_respond_msg`         | 回复消息          |
+| 开发者 → 企微 | `RESPONSE_WELCOME`    | `aibot_respond_welcome_msg` | 回复欢迎语        |
+| 开发者 → 企微 | `RESPONSE_UPDATE`     | `aibot_respond_update_msg`  | 更新模板卡片      |
+| 开发者 → 企微 | `SEND_MSG`            | `aibot_send_msg`            | 主动发送消息      |
+| 开发者 → 企微 | `UPLOAD_MEDIA_INIT`   | `aibot_upload_media_init`   | 上传素材 - 初始化 |
+| 开发者 → 企微 | `UPLOAD_MEDIA_CHUNK`  | `aibot_upload_media_chunk`  | 上传素材 - 分片   |
+| 开发者 → 企微 | `UPLOAD_MEDIA_FINISH` | `aibot_upload_media_finish` | 上传素材 - 完成   |
+| 企微 → 开发者 | `CALLBACK`            | `aibot_msg_callback`        | 消息推送回调      |
+| 企微 → 开发者 | `EVENT_CALLBACK`      | `aibot_event_callback`      | 事件推送回调      |
 
 ---
 
@@ -751,12 +753,12 @@ import type { WsFrame, BaseMessage, TextMessage, TemplateCard } from '@wecom/aib
 
 完整导出列表：
 
-| 类别 | 导出项 |
-| --- | --- |
-| **类** | `WSClient`、`WeComApiClient`、`WsConnectionManager`、`MessageHandler`、`DefaultLogger` |
-| **函数** | `generateReqId`、`generateRandomString`、`decryptFile` |
-| **枚举** | `MessageType`、`EventType`、`TemplateCardType`、`WsCmd` |
-| **类型** | `WSClientOptions`、`WSClientEventMap`、`WsFrame`、`WsFrameHeaders`、`BaseMessage`、`TextMessage`、`ImageMessage`、`MixedMessage`、`VoiceMessage`、`FileMessage`、`EventMessage`、`TemplateCard`、`StreamReplyBody`、`ReplyMsgItem`、`ReplyFeedback`、`Logger` 等 |
+| 类别     | 导出项                                                                                                                                                                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **类**   | `WSClient`、`WeComApiClient`、`WsConnectionManager`、`MessageHandler`、`DefaultLogger`                                                                                                                                                                                           |
+| **函数** | `generateReqId`、`generateRandomString`、`decryptFile`                                                                                                                                                                                                                           |
+| **枚举** | `MessageType`、`EventType`、`TemplateCardType`、`WsCmd`                                                                                                                                                                                                                          |
+| **类型** | `WSClientOptions`、`WSClientEventMap`、`WsFrame`、`WsFrameHeaders`、`BaseMessage`、`TextMessage`、`ImageMessage`、`MixedMessage`、`VoiceMessage`、`FileMessage`、`VideoMessage`、`EventMessage`、`TemplateCard`、`StreamReplyBody`、`ReplyMsgItem`、`ReplyFeedback`、`Logger` 等 |
 
 ---
 

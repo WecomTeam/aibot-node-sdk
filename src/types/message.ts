@@ -15,6 +15,8 @@ export enum MessageType {
   Voice = 'voice',
   /** 文件消息 */
   File = 'file',
+  /** 视频消息 */
+  Video = 'video'
 }
 
 /** 消息发送者信息 */
@@ -46,6 +48,14 @@ export interface VoiceContent {
 /** 文件结构体 */
 export interface FileContent {
   /** 文件的下载 url（五分钟内有效，已加密） */
+  url: string;
+  /** 解密密钥，长连接模式下返回，每个下载链接的 aeskey 唯一 */
+  aeskey?: string;
+}
+
+/** 视频结构体 */
+export interface VideoContent {
+  /** 视频的下载 url（五分钟内有效，已加密） */
   url: string;
   /** 解密密钥，长连接模式下返回，每个下载链接的 aeskey 唯一 */
   aeskey?: string;
@@ -140,6 +150,13 @@ export interface FileMessage extends BaseMessage {
   msgtype: MessageType.File;
   /** 文件内容 */
   file: FileContent;
+}
+
+/** 视频消息 */
+export interface VideoMessage extends BaseMessage {
+  msgtype: MessageType.Video;
+  /** 视频内容 */
+  video: VideoContent;
 }
 
 /** 回复消息选项 */
