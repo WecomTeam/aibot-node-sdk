@@ -1,4 +1,4 @@
-import WebSocket from 'ws';
+import WebSocket, { type ClientOptions as WsClientOptions } from 'ws';
 import type { Logger, WsFrame } from './types';
 import { WsCmd } from './types';
 import { generateReqId } from './utils';
@@ -24,6 +24,7 @@ export class WsConnectionManager {
   private ws: WebSocket | null = null;
   private logger: Logger;
   private wsUrl: string;
+  private wsOptions: WsClientOptions;
   private heartbeatInterval: number;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private maxReconnectAttempts: number;
@@ -33,6 +34,8 @@ export class WsConnectionManager {
   /** 认证凭证 */
   private botId: string = '';
   private botSecret: string = '';
+  /** 额外的认证参数（如 scene、plug_version 等），会展开到认证帧 body 中 */
+  private extraAuthParams: Record<string, any> = {};
 
   /** Number of consecutive missed heartbeat acks (pong) */
   private missedPongCount: number = 0;
@@ -45,12 +48,15 @@ export class WsConnectionManager {
 
   /** 按 req_id 分组的回复发送队列，保证同一 req_id 的消息串行发送 */
   private replyQueues: Map<string, ReplyQueueItem[]> = new Map();
-  /** 正在等待回执的 req_id 集合，value 包含超时定时器和 resolve/reject */
+  /** 正在等待回执的 req_id 集合，value 包含超时定时器、resolve/reject 和序列号 */
   private pendingAcks: Map<string, {
     resolve: (ackFrame: WsFrame) => void;
     reject: (reason: any) => void;
     timer: ReturnType<typeof setTimeout>;
+    seq: number;
   }> = new Map();
+  /** 自增序列号，用于区分同一 reqId 的不同 pending，防止超时与 ack 竞态 */
+  private pendingAckSeq: number = 0;
   /** 回执超时时间（毫秒） */
   private readonly replyAckTimeout: number = 5000;
   /** 单个 req_id 的回复队列最大长度，超过后新消息将被拒绝 */
@@ -68,6 +74,8 @@ export class WsConnectionManager {
   public onReconnecting: ((attempt: number) => void) | null = null;
   /** 错误回调 */
   public onError: ((error: Error) => void) | null = null;
+  /** 服务端主动断开回调（新连接建立导致旧连接被断开） */
+  public onServerDisconnect: ((reason: string) => void) | null = null;
 
   constructor(
     logger: Logger,
@@ -75,20 +83,23 @@ export class WsConnectionManager {
     reconnectBaseDelay: number = 1000,
     maxReconnectAttempts: number = 10,
     wsUrl?: string,
+    wsOptions?: WsClientOptions,
   ) {
     this.logger = logger;
     this.heartbeatInterval = heartbeatInterval;
     this.reconnectBaseDelay = reconnectBaseDelay;
     this.maxReconnectAttempts = maxReconnectAttempts;
     this.wsUrl = wsUrl || DEFAULT_WS_URL;
+    this.wsOptions = wsOptions || {};
   }
 
   /**
    * 设置认证凭证
    */
-  setCredentials(botId: string, botSecret: string): void {
+  setCredentials(botId: string, botSecret: string, extraAuthParams?: Record<string, any>): void {
     this.botId = botId;
     this.botSecret = botSecret;
+    this.extraAuthParams = extraAuthParams || {};
   }
 
   /**
@@ -107,7 +118,7 @@ export class WsConnectionManager {
     this.logger.info(`Connecting to WebSocket: ${this.wsUrl}...`);
 
     try {
-      this.ws = new WebSocket(this.wsUrl);
+      this.ws = new WebSocket(this.wsUrl, this.wsOptions);
       this.setupEventHandlers();
     } catch (error: any) {
       this.logger.error('Failed to create WebSocket connection:', error.message);
@@ -159,7 +170,6 @@ export class WsConnectionManager {
     });
 
     this.ws.on('ping', () => {
-      this.logger.debug('Received WebSocket protocol ping, sent pong');
       this.ws?.pong();
     });
   }
@@ -179,6 +189,7 @@ export class WsConnectionManager {
         body: {
           bot_id: this.botId,
           secret: this.botSecret,
+          ...this.extraAuthParams,
         },
       });
       this.logger.info('Auth frame sent');
@@ -200,14 +211,30 @@ export class WsConnectionManager {
 
     // 消息推送：cmd 为 "aibot_msg_callback"
     if (frame.cmd === WsCmd.CALLBACK) {
-      this.logger.info(`[server -> plugin] cmd=${cmd}, reqId=${reqId}, body=${JSON.stringify(frame.body)}`);
+      this.logger.debug(`[server -> plugin] cmd=${cmd}, reqId=${reqId}, body=${JSON.stringify(frame.body)}`);
       this.onMessage?.(frame);
       return;
     }
 
     // 事件推送：cmd 为 "aibot_event_callback"
     if (frame.cmd === WsCmd.EVENT_CALLBACK) {
-      this.logger.info(`[server -> plugin] cmd=${cmd}, reqId=${reqId}, body=${JSON.stringify(frame.body)}`);
+      this.logger.debug(`[server -> plugin] cmd=${cmd}, reqId=${reqId}, body=${JSON.stringify(frame.body)}`);
+
+      // 检测 disconnected_event：有新连接建立，服务端通知旧连接即将被断开
+      if (frame.body?.event?.eventtype === 'disconnected_event') {
+        this.logger.warn('Received disconnected_event: a new connection has been established, this connection will be closed by server');
+        // 先分发事件给上层（让用户可以监听 event.disconnected_event）
+        this.onMessage?.(frame);
+        // 停止心跳、清理待处理消息
+        this.stopHeartbeat();
+        this.clearPendingMessages('Server disconnected due to new connection');
+        // 标记为非手动断开但阻止自动重连（服务端正常行为，重连也会被再次断开）
+        this.isManualClose = true;
+        // 通知上层服务端主动断开
+        this.onServerDisconnect?.('New connection established, server disconnected this connection');
+        return;
+      }
+
       this.onMessage?.(frame);
       return;
     }
@@ -215,14 +242,8 @@ export class WsConnectionManager {
     // 无 cmd 的帧：认证响应、心跳响应或回复消息回执，通过 req_id 前缀区分类型，再判断 errcode
     const actualReqId = frame.headers?.req_id || '';
 
-    // 检查是否是回复消息的回执（req_id 存在于 pendingAcks 中）
-    if (this.pendingAcks.has(actualReqId)) {
-      this.handleReplyAck(actualReqId, frame);
-      return;
-    }
-
+    // 认证响应（优先于 pendingAcks 检查，避免误判）
     if (actualReqId.startsWith(WsCmd.SUBSCRIBE)) {
-      // 认证响应
       if (frame.errcode !== 0) {
         this.logger.error(`Authentication failed: errcode=${frame.errcode}, errmsg=${frame.errmsg}`);
         this.onError?.(new Error(`Authentication failed: ${frame.errmsg} (code: ${frame.errcode})`));
@@ -234,14 +255,19 @@ export class WsConnectionManager {
       return;
     }
 
+    // 心跳响应（优先于 pendingAcks 检查，避免误判）
     if (actualReqId.startsWith(WsCmd.HEARTBEAT)) {
-      // 心跳响应
       if (frame.errcode !== 0) {
         this.logger.warn(`Heartbeat ack error: errcode=${frame.errcode}, errmsg=${frame.errmsg}`);
         return;
       }
       this.missedPongCount = 0;
-      this.logger.debug('Received heartbeat ack');
+      return;
+    }
+
+    // 检查是否是回复消息的回执（req_id 存在于 pendingAcks 中）
+    if (this.pendingAcks.has(actualReqId)) {
+      this.handleReplyAck(actualReqId, frame);
       return;
     }
 
@@ -298,7 +324,6 @@ export class WsConnectionManager {
         cmd: WsCmd.HEARTBEAT,
         headers: { req_id: generateReqId(WsCmd.HEARTBEAT) },
       });
-      this.logger.debug(`Heartbeat sent${this.missedPongCount > 1 ? ` (awaiting ${this.missedPongCount} pong)` : ''}`);
     } catch (error: any) {
       this.logger.error('Failed to send heartbeat:', error.message);
     }
@@ -359,11 +384,11 @@ export class WsConnectionManager {
    * @returns Promise，收到回执时 resolve(回执帧)，超时或errcode非0时 reject(Error)
    */
   sendReply(reqId: string, body: any, cmd: string = WsCmd.RESPONSE): Promise<WsFrame> {
-    // 日志中截断 base64_data，避免分片上传时日志过大
-    const logBody = body?.base64_data
-      ? { ...body, base64_data: `<${body.base64_data.length} chars>` }
-      : body;
-    this.logger.debug(`[ws] sendReply: reqId=${reqId}, cmd=${cmd}, body=${JSON.stringify(logBody)}`);
+    // // 日志中截断 base64_data，避免分片上传时日志过大
+    // const logBody = body?.base64_data
+    //   ? { ...body, base64_data: `<${body.base64_data.length} chars>` }
+    //   : body;
+    // this.logger.debug(`[ws] sendReply: reqId=${reqId}, cmd=${cmd}, body=${JSON.stringify(logBody)}`);
     return new Promise<WsFrame>((resolve, reject) => {
       const frame: WsFrame = {
         cmd,
@@ -416,15 +441,24 @@ export class WsConnectionManager {
       this.logger.debug(`Reply message sent via WebSocket, reqId: ${reqId}, queue length: ${queue.length}`);
     } catch (error: any) {
       this.logger.error(`Failed to send reply for reqId ${reqId}:`, error.message);
-      // 发送失败：reject 当前项，继续处理队列中的下一条
+      // 发送失败：reject 当前项，用 queueMicrotask 异步继续处理下一条，避免同步递归栈溢出
       queue.shift();
       item.reject(error);
-      this.processReplyQueue(reqId);
+      queueMicrotask(() => this.processReplyQueue(reqId));
       return;
     }
 
+    // 分配唯一序列号，用于超时回调中校验是否是当前 pending
+    const seq = ++this.pendingAckSeq;
+
     // 设置回执超时定时器
     const timer = setTimeout(() => {
+      // 校验 seq：如果不匹配，说明这是过期的超时回调（当前 pending 已被正常 ack 处理过），直接忽略
+      const currentPending = this.pendingAcks.get(reqId);
+      if (!currentPending || currentPending.seq !== seq) {
+        return;
+      }
+
       this.logger.warn(`Reply ack timeout (${this.replyAckTimeout}ms) for reqId: ${reqId}`);
       this.pendingAcks.delete(reqId);
 
@@ -440,6 +474,7 @@ export class WsConnectionManager {
       resolve: item.resolve,
       reject: item.reject,
       timer,
+      seq,
     });
   }
 
@@ -485,13 +520,23 @@ export class WsConnectionManager {
    * @param reason - 清理原因，用于 reject 的错误信息
    */
   private clearPendingMessages(reason: string): void {
-    for (const [_reqId, pending] of this.pendingAcks) {
+    // 收集所有已在 pendingAcks 中的 reject 函数引用，用于后续去重
+    const pendingRejects = new Set<(reason: any) => void>();
+
+    // 先清理 pendingAcks：清除定时器并 reject 正在等待回执的消息
+    for (const [reqId, pending] of this.pendingAcks) {
       clearTimeout(pending.timer);
+      pendingRejects.add(pending.reject);
+      pending.reject(new Error(`${reason}, reply for reqId: ${reqId} cancelled`));
     }
     this.pendingAcks.clear();
 
+    // 再清理 replyQueues：跳过已经在 pendingAcks 中被 reject 过的队首 item，避免双重 reject
     for (const [reqId, queue] of this.replyQueues) {
       for (const item of queue) {
+        if (pendingRejects.has(item.reject)) {
+          continue; // 已在 pendingAcks 中被 reject 过，跳过
+        }
         item.reject(new Error(`${reason}, reply for reqId: ${reqId} cancelled`));
       }
     }
@@ -504,7 +549,7 @@ export class WsConnectionManager {
     this.clearPendingMessages('Connection manually closed');
 
     if (this.ws) {
-      this.ws.close(1000, 'Manual disconnect');
+      this.ws.terminate();
       this.ws = null;
     }
 

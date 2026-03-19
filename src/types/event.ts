@@ -20,6 +20,8 @@ export enum EventType {
   TemplateCardEvent = 'template_card_event',
   /** 用户反馈事件：用户对机器人回复进行反馈 */
   FeedbackEvent = 'feedback_event',
+  /** 连接断开事件：有新连接建立时，服务端向旧连接发送此事件并主动断开 */
+  Disconnected = 'disconnected_event',
 }
 
 /** 事件发送者信息（比 MessageFrom 多了 corpid 字段） */
@@ -52,8 +54,14 @@ export interface FeedbackEventData {
   eventtype: EventType.FeedbackEvent;
 }
 
+/** 连接断开事件：有新连接建立时，服务端向旧连接推送此事件并主动断开旧连接 */
+export interface DisconnectedEventData {
+  /** 事件类型 */
+  eventtype: EventType.Disconnected;
+}
+
 /** 事件内容联合类型 */
-export type EventContent = EnterChatEvent | TemplateCardEventData | FeedbackEventData;
+export type EventContent = EnterChatEvent | TemplateCardEventData | FeedbackEventData | DisconnectedEventData;
 
 /** 事件回调消息结构 */
 export interface EventMessage {
@@ -100,6 +108,8 @@ export interface WSClientEventMap {
   'event.template_card_event': (data: WsFrame<EventMessageWith<TemplateCardEventData>>) => void;
   /** 收到用户反馈事件，body 为 EventMessage（event 字段为 FeedbackEventData） */
   'event.feedback_event': (data: WsFrame<EventMessageWith<FeedbackEventData>>) => void;
+  /** 收到连接断开事件：有新连接建立，服务端主动断开当前旧连接 */
+  'event.disconnected_event': (data: WsFrame<EventMessageWith<DisconnectedEventData>>) => void;
   /** 连接建立 */
   connected: () => void;
   /** 认证成功 */

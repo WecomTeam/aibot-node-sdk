@@ -49,6 +49,7 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
       heartbeatInterval: 30000,
       requestTimeout: 10000,
       wsUrl: '',
+      wsOptions: {},
       logger: new DefaultLogger(),
       ...options,
     } as Required<WSClientOptions>;
@@ -68,10 +69,14 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
       this.options.reconnectInterval,
       this.options.maxReconnectAttempts,
       this.options.wsUrl || undefined,
+      this.options.wsOptions,
     );
 
     // 设置认证凭证
-    this.wsManager.setCredentials(this.options.botId, this.options.secret);
+    this.wsManager.setCredentials(this.options.botId, this.options.secret, {
+      ...(this.options.scene !== undefined && { scene: this.options.scene }),
+      ...(this.options.plug_version !== undefined && { plug_version: this.options.plug_version }),
+    });
 
     // 初始化消息处理器
     this.messageHandler = new MessageHandler(this.logger);
@@ -95,6 +100,13 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
     };
 
     this.wsManager.onDisconnected = (reason: string) => {
+      this.emit('disconnected', reason);
+    };
+
+    // 服务端因新连接建立而主动断开旧连接
+    this.wsManager.onServerDisconnect = (reason: string) => {
+      this.logger.warn(`Server disconnected this connection: ${reason}`);
+      this.started = false;
       this.emit('disconnected', reason);
     };
 

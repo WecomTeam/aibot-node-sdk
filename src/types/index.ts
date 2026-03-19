@@ -71,6 +71,7 @@ export {
   type EnterChatEvent,
   type TemplateCardEventData,
   type FeedbackEventData,
+  type DisconnectedEventData,
   type EventContent,
   type EventMessage,
   type EventMessageWith,
