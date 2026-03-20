@@ -138,7 +138,12 @@ export class WsConnectionManager {
     this.logger.info(`Connecting to WebSocket: ${this.wsUrl}...`);
 
     const mergedOptions: WsClientOptions = { ...this.wsOptions };
-    const proxyUrl = getProxyForUrl(this.wsUrl);
+    // `proxy-from-env` 只对 http/https 做代理判定，直接传 wss/ws 会拿不到代理。
+    // 这里把 ws(s) 映射到对应的 http(s) URL 来进行 NO_PROXY/代理匹配。
+    const proxyLookupUrl = this.wsUrl
+      .replace(/^wss:/i, "https:")
+      .replace(/^ws:/i, "http:");
+    const proxyUrl = getProxyForUrl(proxyLookupUrl);
     if (proxyUrl && !mergedOptions.agent) {
       mergedOptions.agent = new HttpsProxyAgent(proxyUrl);
     }
