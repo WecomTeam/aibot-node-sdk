@@ -1,9 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
+import { getProxyForUrl } from 'proxy-from-env';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { HttpProxyAgent } from 'http-proxy-agent';
 import type { Logger } from './types';
 
 /**
  * 企业微信 API 客户端
  * 仅负责文件下载等 HTTP 辅助功能，消息收发均走 WebSocket 通道
+ * 支持通过环境变量 HTTP_PROXY、HTTPS_PROXY、NO_PROXY（及小写）走代理
  */
 export class WeComApiClient {
   private httpClient: AxiosInstance;
@@ -17,6 +21,30 @@ export class WeComApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+    });
+
+    // 按请求 URL 应用代理（尊重 NO_PROXY）
+    this.httpClient.interceptors.request.use((config) => {
+      const url = config.url && config.baseURL
+        ? new URL(config.url, config.baseURL).href
+        : (config.url || config.baseURL || '');
+      if (!url) return config;
+
+      const proxyUrl = getProxyForUrl(url);
+      if (!proxyUrl) return config;
+
+      try {
+        if (url.startsWith('https:')) {
+          config.httpsAgent = new HttpsProxyAgent(proxyUrl);
+          config.proxy = false;
+        } else if (url.startsWith('http:')) {
+          config.httpAgent = new HttpProxyAgent(proxyUrl);
+          config.proxy = false;
+        }
+      } catch (_) {
+        // 忽略代理 URL 解析错误，直连
+      }
+      return config;
     });
   }
 

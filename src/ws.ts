@@ -1,4 +1,6 @@
 import WebSocket, { type ClientOptions as WsClientOptions } from 'ws';
+import { getProxyForUrl } from 'proxy-from-env';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Logger, WsFrame } from './types';
 import { WsCmd, WSAuthFailureError, WSReconnectExhaustedError } from './types';
 import { generateReqId } from './utils';
@@ -135,8 +137,19 @@ export class WsConnectionManager {
 
     this.logger.info(`Connecting to WebSocket: ${this.wsUrl}...`);
 
+    const mergedOptions: WsClientOptions = { ...this.wsOptions };
+    // `proxy-from-env` 只对 http/https 做代理判定，直接传 wss/ws 会拿不到代理。
+    // 这里把 ws(s) 映射到对应的 http(s) URL 来进行 NO_PROXY/代理匹配。
+    const proxyLookupUrl = this.wsUrl
+      .replace(/^wss:/i, "https:")
+      .replace(/^ws:/i, "http:");
+    const proxyUrl = getProxyForUrl(proxyLookupUrl);
+    if (proxyUrl && !mergedOptions.agent) {
+      mergedOptions.agent = new HttpsProxyAgent(proxyUrl);
+    }
+
     try {
-      this.ws = new WebSocket(this.wsUrl, this.wsOptions);
+      this.ws = new WebSocket(this.wsUrl, mergedOptions);
       this.setupEventHandlers();
     } catch (error: any) {
       this.logger.error('Failed to create WebSocket connection:', error.message);
