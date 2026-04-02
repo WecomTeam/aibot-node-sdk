@@ -186,6 +186,12 @@ wsClient.on('message.voice', (frame: WsFrame) => {
 });
 
 // 监听文件消息(视频消息 message.video)
+wsClient.on('message.video', async (frame: WsFrame) => {
+  const body = frame.body;
+  const fileUrl = body.video?.url;
+  console.log(`📁 收到视频消息: ${fileUrl}`);
+});
+// 监听文件消息(文件消息 message.file)
 wsClient.on('message.file', async (frame: WsFrame) => {
   const body = frame.body;
   const fileUrl = body.file?.url;

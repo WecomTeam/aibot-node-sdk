@@ -1,6 +1,6 @@
 {
   "name": "@wecom/aibot-node-sdk",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "企业微信智能机器人 Node.js SDK - WebSocket 长连接通道",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",

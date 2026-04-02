@@ -630,6 +630,18 @@ export class WsConnectionManager {
   }
 
   /**
+   * 检查指定 reqId 是否有待回执的消息（即上一条消息还未收到 ack）
+   *
+   * 用于流式场景：调用方可据此决定是否跳过当前帧，避免排队积压。
+   *
+   * @param reqId - 要检查的 req_id
+   * @returns true 表示有消息正在等待 ack
+   */
+  hasPendingAck(reqId: string): boolean {
+    return this.pendingAcks.has(reqId);
+  }
+
+  /**
    * 获取当前连接状态
    */
   get isConnected(): boolean {

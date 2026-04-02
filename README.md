@@ -4,7 +4,7 @@
 
 ## ✨ 特性
 
-- 🔗 **WebSocket 长连接** — 基于 `wss://openws.work.weixin.qq.com` 内置默认地址，开箱即用
+- 🔗 **WebSocket 长连接** — 基于 `wss://openws.work.weixin.qq.com` 内置默认地址，开箱即用【注： 私有部署企业需要在企业管理端查看该长连接地址】
 - 🔐 **自动认证** — 连接建立后自动发送认证帧（botId + secret）
 - 💓 **心跳保活** — 自动维护心跳，连续未收到 ack 时自动判定连接异常
 - 🔄 **断线重连** — 指数退避重连策略（1s → 2s → 4s → ... → 30s 上限），支持自定义最大重连次数
@@ -353,16 +353,17 @@ wsClient.on('message.image', async (frame: WsFrame) => {
 
 `WSClientOptions` 完整配置：
 
-| 参数                   | 类型     | 必填 | 默认值                            | 说明                                                                          |
-| ---------------------- | -------- | ---- | --------------------------------- | ----------------------------------------------------------------------------- |
-| `botId`                | `string` | ✅    | —                                 | 机器人 ID（企业微信后台获取）                                                 |
-| `secret`               | `string` | ✅    | —                                 | 机器人 Secret（企业微信后台获取）                                             |
-| `reconnectInterval`    | `number` | —    | `1000`                            | 重连基础延迟（毫秒），实际延迟按指数退避递增（1s → 2s → 4s → ... → 30s 上限） |
-| `maxReconnectAttempts` | `number` | —    | `10`                              | 最大重连次数（`-1` 表示无限重连）                                             |
-| `heartbeatInterval`    | `number` | —    | `30000`                           | 心跳间隔（毫秒）                                                              |
-| `requestTimeout`       | `number` | —    | `10000`                           | HTTP 请求超时时间（毫秒）                                                     |
-| `wsUrl`                | `string` | —    | `wss://openws.work.weixin.qq.com` | 自定义 WebSocket 连接地址                                                     |
-| `logger`               | `Logger` | —    | `DefaultLogger`                   | 自定义日志实例                                                                |
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `botId` | `string` | ✅ | — | 机器人 ID（企业微信后台获取） |
+| `secret` | `string` | ✅ | — | 机器人 Secret（企业微信后台获取） |
+| `reconnectInterval` | `number` | — | `1000` | 重连基础延迟（毫秒），实际延迟按指数退避递增（1s → 2s → 4s → ... → 30s 上限） |
+| `maxReconnectAttempts` | `number` | — | `10` | 最大重连次数（`-1` 表示无限重连） |
+| `heartbeatInterval` | `number` | — | `30000` | 心跳间隔（毫秒） |
+| `requestTimeout` | `number` | — | `10000` | HTTP 请求超时时间（毫秒） |
+| `wsUrl` | `string` | — | `wss://openws.work.weixin.qq.com` | 自定义 WebSocket 连接地址 |
+| `wsOptions` | `string` | — | `string` | 自签证书地址 |
+| `logger` | `Logger` | — | `DefaultLogger` | 自定义日志实例 |
 
 ---
 
@@ -506,6 +507,24 @@ interface Logger {
 const wsClient = new AiBot.WSClient({
   botId: 'your-bot-id',
   secret: 'your-bot-secret',
+  logger: {
+    debug: () => {},  // 静默 debug 日志
+    info: console.log,
+    warn: console.warn,
+    error: console.error,
+  },
+});
+```
+
+私有部署企业使用示例：
+```ts
+const wsClient = new AiBot.WSClient({
+  botId: 'your-bot-id',
+  secret: 'your-bot-secret',
+  wsUrl: 'your-wsUrl',
+  wsOptions: {
+    ca: fs.readFileSync('your-ca-path'),
+  },
   logger: {
     debug: () => {},  // 静默 debug 日志
     info: console.log,
