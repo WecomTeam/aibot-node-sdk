@@ -690,8 +690,8 @@ wsClient.on('message.text', async (frame: WsFrame) => {
 
 // 监听卡片按钮点击事件并更新卡片
 wsClient.on('event.template_card_event', async (frame: WsFrame) => {
-  const eventKey = frame.body.event?.event_key;
-  const taskId = frame.body.event?.task_id;
+  const eventKey = frame.body.event?.template_card_event.event_key
+  const taskId = frame.body.event?.template_card_event.task_id
 
   await wsClient.updateTemplateCard(frame, {
     card_type: 'text_notice',
