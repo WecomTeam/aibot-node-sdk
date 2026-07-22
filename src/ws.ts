@@ -64,7 +64,7 @@ export class WsConnectionManager {
   /** 自增序列号，用于区分同一 reqId 的不同 pending，防止超时与 ack 竞态 */
   private pendingAckSeq: number = 0;
   /** 回执超时时间（毫秒） */
-  private readonly replyAckTimeout: number = 5000;
+  private readonly replyAckTimeout: number;
   /** 单个 req_id 的回复队列最大长度，超过后新消息将被拒绝 */
   private maxReplyQueueSize: number = 500;
 
@@ -92,6 +92,7 @@ export class WsConnectionManager {
     wsOptions?: WsClientOptions,
     maxReplyQueueSize?: number,
     maxAuthFailureAttempts?: number,
+    replyAckTimeout: number = 15000,
   ) {
     this.logger = logger;
     this.heartbeatInterval = heartbeatInterval;
@@ -100,6 +101,7 @@ export class WsConnectionManager {
     this.maxAuthFailureAttempts = maxAuthFailureAttempts ?? 5;
     this.wsUrl = wsUrl || DEFAULT_WS_URL;
     this.wsOptions = wsOptions || {};
+    this.replyAckTimeout = replyAckTimeout;
     if (maxReplyQueueSize !== undefined) {
       this.maxReplyQueueSize = maxReplyQueueSize;
     }
