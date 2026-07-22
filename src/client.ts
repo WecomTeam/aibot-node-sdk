@@ -52,6 +52,7 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
       wsUrl: '',
       wsOptions: {},
       maxReplyQueueSize: 500,
+      replyAckTimeout: 15000,
       logger: new DefaultLogger(),
       ...options,
     } as Required<WSClientOptions>;
@@ -74,6 +75,7 @@ export class WSClient extends EventEmitter<WSClientEventMap> {
       this.options.wsOptions,
       this.options.maxReplyQueueSize,
       this.options.maxAuthFailureAttempts,
+      this.options.replyAckTimeout,
     );
 
     // 设置认证凭证

@@ -31,6 +31,8 @@ export interface WSClientOptions {
   wsOptions?: WsClientOptions;
   /** 单个 req_id 的回复队列最大长度，超过后新消息将被拒绝，默认 500 */
   maxReplyQueueSize?: number;
+  /** 回复回执超时时间（毫秒），默认 15000 */
+  replyAckTimeout?: number;
   /** 自定义日志函数 */
   logger?: Logger;
 }
