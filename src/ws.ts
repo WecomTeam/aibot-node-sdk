@@ -565,7 +565,18 @@ export class WsConnectionManager {
       if (queue) {
         queue.shift();
       }
-      pending.reject(frame);
+      // Reject with a real Error instead of the raw ack frame. The frame has
+      // no .message, so callers logging `error.message` saw `undefined` and
+      // error classification by code/status was impossible. errcode/errmsg
+      // are attached for programmatic use; the full ack frame stays available
+      // on `error.frame` for advanced callers.
+      const error = new Error(
+        `WeCom reply rejected (errcode=${frame.errcode}, errmsg=${frame.errmsg ?? ''}, reqId=${reqId})`,
+      ) as Error & { errcode?: number; errmsg?: string; frame: WsFrame };
+      error.errcode = frame.errcode;
+      error.errmsg = frame.errmsg;
+      error.frame = frame;
+      pending.reject(error);
     } else {
       this.logger.debug(`Reply ack received for reqId: ${reqId}`);
       // 成功：resolve 当前项，传入完整回执帧
